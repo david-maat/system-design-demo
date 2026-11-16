@@ -1,10 +1,11 @@
-// Step 2: read-heavy traffic (90% heavy reads, 10% writes). The primary DB (500m CPU)
-// saturates on the unindexed /items/stats query. Route reads to the replica -> it recovers.
+// Step 2: read-heavy traffic (90% heavy reads, 10% writes).
+// Measured: /items/stats costs ~120-200ms DB CPU, so one Postgres pod (500m) serves ~3-4/s.
+// 8 req/s (~7 heavy reads/s) = ~2x the primary alone; 3 replicas (~10-12/s) handle it.
 import http from 'k6/http';
 import { check } from 'k6';
 
 const TARGET = __ENV.TARGET || 'http://demo-api.demo.svc.cluster.local';
-const RATE = parseInt(__ENV.RATE || '25');
+const RATE = parseInt(__ENV.RATE || '8');
 
 export const options = {
   scenarios: {
