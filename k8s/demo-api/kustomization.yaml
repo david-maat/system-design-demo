@@ -8,7 +8,7 @@ configMapGenerator:
   - name: demo-api
     literals:
       - DATABASE_URL=postgresql://demo:demo-password@postgres-primary:5432/demo
-      - READ_DATABASE_URL=
-      # - READ_DATABASE_URL=postgresql://demo:demo-password@postgres-replica:5432/demo
+      # - READ_DATABASE_URL=
+      - READ_DATABASE_URL=postgresql://demo:demo-password@postgres-replica:5432/demo
       - DB_POOL_SIZE=5
       - HASH_ROUNDS=20000
