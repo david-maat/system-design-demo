@@ -17,11 +17,12 @@ spec:
           imagePullPolicy: Always
           envFrom: [{configMapRef: {name: demo-api}}]
           ports: [{name: http, containerPort: 8000}]
-          readinessProbe:
+          # Only a startupProbe: new pods get traffic once the app is up, but an
+          # overloaded pod is never pulled out of the Service (no readiness/liveness).
+          startupProbe:
             httpGet: {path: /healthz, port: http}
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 6   # don't pull overloaded pods out of the Service
+            periodSeconds: 1
+            failureThreshold: 30
           resources:
             # Tight on purpose: one pod saturates at a modest request rate.
             requests: {cpu: 200m, memory: 128Mi}
