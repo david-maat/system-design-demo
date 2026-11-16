@@ -1,0 +1,68 @@
+# Streaming read replica(s). Each pod clones the primary with pg_basebackup on first start.
+# Scale with `replicas:` below; the postgres-replica Service load balances across them.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-replica
+  labels: {app: postgres, role: replica}
+spec:
+  selector: {app: postgres, role: replica}
+  ports: [{name: postgres, port: 5432}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-replica
+spec:
+  serviceName: postgres-replica
+  replicas: 1
+  selector:
+    matchLabels: {app: postgres, role: replica}
+  template:
+    metadata:
+      labels: {app: postgres, role: replica}
+    spec:
+      securityContext: {runAsUser: 999, runAsGroup: 999, fsGroup: 999}
+      initContainers:
+        - name: basebackup
+          image: postgres:17
+          env:
+            - name: PGPASSWORD
+              valueFrom: {secretKeyRef: {name: postgres, key: REPLICATION_PASSWORD}}
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              if [ -s /var/lib/postgresql/data/pgdata/PG_VERSION ]; then
+                echo "data dir exists, skipping basebackup"; exit 0
+              fi
+              until pg_isready -h postgres-primary -p 5432; do echo waiting for primary; sleep 2; done
+              # Primary may still be running init scripts; wait until the replicator role exists.
+              until pg_basebackup -h postgres-primary -U replicator \
+                    -D /var/lib/postgresql/data/pgdata -R -X stream -P; do
+                rm -rf /var/lib/postgresql/data/pgdata; sleep 3
+              done
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+      containers:
+        - name: postgres
+          image: postgres:17
+          args: ["-c", "max_connections=100", "-c", "shared_buffers=128MB"]
+          envFrom: [{secretRef: {name: postgres}}]
+          env:
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports: [{containerPort: 5432}]
+          readinessProbe:
+            exec: {command: ["pg_isready", "-U", "demo", "-d", "demo"]}
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 250m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: {requests: {storage: 2Gi}}

@@ -1,0 +1,6 @@
+namespace: cloudflared
+resources: [deployment.yaml]
+# Hash suffix -> editing config.yaml rolls the connector pods automatically.
+configMapGenerator:
+  - name: cloudflared
+    files: [config.yaml]

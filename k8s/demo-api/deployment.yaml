@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-api
+spec:
+  # ---- DEMO KNOB: Step 1 (scale out) -> change 1 to 4 ----
+  replicas: 1
+  selector:
+    matchLabels: {app: demo-api}
+  template:
+    metadata:
+      labels: {app: demo-api}
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/david-maat/system-design-demo/api:latest
+          imagePullPolicy: Always
+          envFrom: [{configMapRef: {name: demo-api}}]
+          ports: [{name: http, containerPort: 8000}]
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+          resources:
+            # Tight on purpose: one pod saturates at a modest request rate.
+            requests: {cpu: 200m, memory: 128Mi}
+            limits: {cpu: 200m, memory: 256Mi}

@@ -1,0 +1,89 @@
+# Everything needed to bring the cluster up, in one file.
+#   cp bootstrap.example.yaml bootstrap.yaml   # bootstrap.yaml is gitignored
+#   # fill in every <...>
+#   kubectl apply -f bootstrap.yaml
+# Uses the k3s built-in Helm controller, so Argo CD is installed by this file too.
+# Safe to re-apply after editing.
+
+# ---------------------------------------------------------------- namespaces
+apiVersion: v1
+kind: Namespace
+metadata: {name: argocd}
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: cloudflared}
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: monitoring}
+---
+# ---------------------------------------------------------------- secrets
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflared-credentials
+  namespace: cloudflared
+type: Opaque
+stringData:
+  # From `cloudflared tunnel create system-design-demo`
+  tunnel-id: "<TUNNEL_ID>"
+  # Paste the contents of ~/.cloudflared/<TUNNEL_ID>.json
+  credentials.json: |
+    {"AccountTag":"<ACCOUNT_TAG>","TunnelSecret":"<TUNNEL_SECRET>","TunnelID":"<TUNNEL_ID>"}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-admin
+  namespace: monitoring
+type: Opaque
+stringData:
+  admin-user: admin
+  admin-password: "<GRAFANA_ADMIN_PASSWORD>"
+---
+# ---------------------------------------------------------------- Argo CD
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: argocd
+  namespace: kube-system
+spec:
+  repo: https://argoproj.github.io/argo-helm
+  chart: argo-cd
+  version: 10.18.0          # Argo CD v3.6.1
+  targetNamespace: argocd
+  valuesContent: |-
+    configs:
+      secret:
+        # bcrypt hash of the admin password. Generate with:
+        #   htpasswd -nbBC 10 "" '<password>' | tr -d ':\n'
+        argocdServerAdminPassword: "<ARGOCD_ADMIN_BCRYPT_HASH>"
+      cm:
+        url: https://argocd.davidmaat.nl
+---
+# Root app-of-apps; everything else comes from argocd/apps/ in git.
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: argocd-root
+  namespace: kube-system
+spec:
+  repo: https://argoproj.github.io/argo-helm
+  chart: argocd-apps
+  version: 2.0.8
+  targetNamespace: argocd
+  valuesContent: |-
+    applications:
+      root:
+        namespace: argocd
+        project: default
+        source:
+          repoURL: https://github.com/david-maat/system-design-demo.git
+          targetRevision: main
+          path: argocd/apps
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: argocd
+        syncPolicy:
+          automated: {prune: true, selfHeal: true}

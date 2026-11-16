@@ -1,0 +1,35 @@
+# Credentials Secret is NOT in git: it comes from bootstrap.yaml (see bootstrap.example.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: cloudflared}
+  template:
+    metadata:
+      labels: {app: cloudflared}
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.11.0
+          args: ["tunnel", "--config", "/etc/cloudflared/config/config.yaml", "run", "$(TUNNEL_ID)"]
+          env:
+            - name: TUNNEL_ID
+              valueFrom: {secretKeyRef: {name: cloudflared-credentials, key: tunnel-id}}
+          livenessProbe:
+            httpGet: {path: /ready, port: 2000}
+            initialDelaySeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/cloudflared/config, readOnly: true}
+            - {name: creds, mountPath: /etc/cloudflared/creds, readOnly: true}
+      volumes:
+        - name: config
+          configMap: {name: cloudflared}
+        - name: creds
+          secret:
+            secretName: cloudflared-credentials
+            items: [{key: credentials.json, path: credentials.json}]

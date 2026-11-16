@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+data:
+  01-replication.sh: |
+    #!/bin/bash
+    set -e
+    psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<SQL
+      CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD '${REPLICATION_PASSWORD}';
+    SQL
+    echo "host replication replicator all scram-sha-256" >> "$PGDATA/pg_hba.conf"
+  02-seed.sql: |
+    CREATE TABLE items (
+      id          bigserial PRIMARY KEY,
+      name        text NOT NULL,
+      category    text NOT NULL,
+      price       numeric(10,2) NOT NULL,
+      description text NOT NULL,
+      created_at  timestamptz NOT NULL DEFAULT now()
+    );
+    -- No index on category/description on purpose: /items/stats does a seq scan.
+    INSERT INTO items (name, category, price, description)
+    SELECT 'item-' || g,
+           (ARRAY['books','games','music','movies','tools','garden','toys','food'])[1 + g % 8],
+           round((random() * 100)::numeric, 2),
+           md5(g::text) || md5((g * 7)::text)
+    FROM generate_series(1, 300000) g;
+    ANALYZE items;

@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "0"}
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 93.3.0
+    helm:
+      releaseName: monitoring
+      valuesObject:
+        alertmanager: {enabled: false}
+        prometheus:
+          prometheusSpec:
+            enableRemoteWriteReceiver: true   # k6 pushes its metrics here
+            scrapeInterval: 5s
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            retention: 2d
+        grafana:
+          admin:   # hand-made Secret, never in git (see README)
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+          grafana.ini:
+            server: {root_url: https://grafana.davidmaat.nl}
+            auth.anonymous: {enabled: true, org_role: Viewer}   # audience can view without login
+          sidecar:
+            dashboards: {enabled: true, label: grafana_dashboard}
+  destination: {server: https://kubernetes.default.svc, namespace: monitoring}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]

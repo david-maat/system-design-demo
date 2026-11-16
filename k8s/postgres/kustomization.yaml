@@ -1,0 +1,2 @@
+namespace: demo
+resources: [secret.yaml, init.yaml, primary.yaml, replica.yaml]

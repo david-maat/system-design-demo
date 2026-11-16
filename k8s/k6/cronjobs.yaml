@@ -1,0 +1,56 @@
+# Suspended CronJobs are just templates; start a run on stage with:
+#   kubectl -n demo create job --from=cronjob/k6-overload k6-overload-$(date +%s)
+#   kubectl -n demo create job --from=cronjob/k6-reads    k6-reads-$(date +%s)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: k6-overload
+spec:
+  suspend: true
+  schedule: "0 0 1 1 *"
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 600
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: k6
+              image: grafana/k6:0.57.0
+              args: ["run", "-o", "experimental-prometheus-rw", "--tag", "testid=overload", "/scripts/overload.js"]
+              env:
+                - {name: K6_PROMETHEUS_RW_SERVER_URL, value: "http://monitoring-kube-prometheus-prometheus.monitoring:9090/api/v1/write"}
+                - {name: K6_PROMETHEUS_RW_TREND_STATS, value: "p(50),p(95),p(99),avg"}
+                - {name: K6_PROMETHEUS_RW_PUSH_INTERVAL, value: "5s"}
+              volumeMounts: [{name: scripts, mountPath: /scripts}]
+          volumes:
+            - name: scripts
+              configMap: {name: k6-scripts}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: k6-reads
+spec:
+  suspend: true
+  schedule: "0 0 1 1 *"
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 600
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: k6
+              image: grafana/k6:0.57.0
+              args: ["run", "-o", "experimental-prometheus-rw", "--tag", "testid=reads", "/scripts/reads.js"]
+              env:
+                - {name: K6_PROMETHEUS_RW_SERVER_URL, value: "http://monitoring-kube-prometheus-prometheus.monitoring:9090/api/v1/write"}
+                - {name: K6_PROMETHEUS_RW_TREND_STATS, value: "p(50),p(95),p(99),avg"}
+                - {name: K6_PROMETHEUS_RW_PUSH_INTERVAL, value: "5s"}
+              volumeMounts: [{name: scripts, mountPath: /scripts}]
+          volumes:
+            - name: scripts
+              configMap: {name: k6-scripts}

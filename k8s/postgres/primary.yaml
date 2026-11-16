@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-primary
+  labels: {app: postgres, role: primary}
+spec:
+  selector: {app: postgres, role: primary}
+  ports: [{name: postgres, port: 5432}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-primary
+spec:
+  serviceName: postgres-primary
+  replicas: 1
+  selector:
+    matchLabels: {app: postgres, role: primary}
+  template:
+    metadata:
+      labels: {app: postgres, role: primary}
+    spec:
+      securityContext: {runAsUser: 999, runAsGroup: 999, fsGroup: 999}
+      containers:
+        - name: postgres
+          image: postgres:17
+          args: ["-c", "max_connections=100", "-c", "shared_buffers=128MB"]
+          envFrom: [{secretRef: {name: postgres}}]
+          env:
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports: [{containerPort: 5432}]
+          readinessProbe:
+            exec: {command: ["pg_isready", "-U", "demo", "-d", "demo"]}
+            periodSeconds: 5
+          resources:
+            # Tight limit on purpose so the primary visibly saturates.
+            requests: {cpu: 250m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+            - {name: init, mountPath: /docker-entrypoint-initdb.d}
+      volumes:
+        - name: init
+          configMap: {name: postgres-init}
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: {requests: {storage: 2Gi}}

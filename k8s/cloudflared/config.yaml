@@ -1,0 +1,15 @@
+# Locally-managed tunnel: routes live here in git, Argo CD syncs them.
+# Tunnel ID + credentials come from the hand-made Secret "cloudflared-credentials".
+credentials-file: /etc/cloudflared/creds/credentials.json
+metrics: 0.0.0.0:2000
+no-autoupdate: true
+ingress:
+  - hostname: demo.davidmaat.nl
+    service: http://demo-api.demo.svc.cluster.local:80
+  - hostname: grafana.davidmaat.nl
+    service: http://monitoring-grafana.monitoring.svc.cluster.local:80
+  - hostname: argocd.davidmaat.nl
+    service: https://argocd-server.argocd.svc.cluster.local:443
+    originRequest:
+      noTLSVerify: true   # Argo CD's self-signed cert; Cloudflare terminates public TLS
+  - service: http_status:404

@@ -1,0 +1,7 @@
+namespace: demo
+resources: [cronjobs.yaml]
+configMapGenerator:
+  - name: k6-scripts
+    files: [scripts/overload.js, scripts/reads.js]
+generatorOptions:
+  disableNameSuffixHash: true

@@ -1,0 +1,12 @@
+# k3s ships Traefik: reachable at http://<any-node-ip>/ on your LAN (used for laptop k6 runs).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-api
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: demo-api, port: {number: 80}}}
