@@ -15,7 +15,7 @@ metadata:
   name: postgres-replica
 spec:
   serviceName: postgres-replica
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels: {app: postgres, role: replica}
   template:
