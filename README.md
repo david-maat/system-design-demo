@@ -43,6 +43,10 @@ To add a hostname, add it to `k8s/cloudflared/config.yaml` and run `cloudflared 
 
 Load always comes from **inside the cluster**, never through Cloudflare.
 
+**Automated:** `./demo.sh` runs both acts in order (Enter moves to the next step, `--auto` runs on a timer,
+`--reset` only resets). It changes the knobs with kubectl while Argo CD is paused for `demo-api` and `postgres`,
+and resets everything on exit. The manual Git-based steps below still work.
+
 ### Act 1: one server gets overloaded → scale out
 ```bash
 kubectl -n demo create job --from=cronjob/k6-overload k6-overload-$(date +%s)
