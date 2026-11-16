@@ -4,7 +4,7 @@ metadata:
   name: demo-api
 spec:
   # ---- DEMO KNOB: Step 1 (scale out) -> change 1 to 4 ----
-  replicas: 1
+  replicas: 4
   selector:
     matchLabels: {app: demo-api}
   template:
