@@ -20,6 +20,8 @@ spec:
           readinessProbe:
             httpGet: {path: /healthz, port: http}
             periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6   # don't pull overloaded pods out of the Service
           resources:
             # Tight on purpose: one pod saturates at a modest request rate.
             requests: {cpu: 200m, memory: 128Mi}

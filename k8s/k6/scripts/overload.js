@@ -1,10 +1,10 @@
-// Step 1: CPU-bound traffic. One API pod (200m CPU) tops out around ~15-20 req/s,
-// so a fixed arrival rate above that makes latency + errors climb. Scale out -> it recovers.
+// Step 1: CPU-bound traffic. Measured: one API pod (200m CPU) serves ~8 req/s.
+// 24 req/s = 3x one pod (latency + timeouts climb); 4 pods (~32 req/s) handle it with headroom.
 import http from 'k6/http';
 import { check } from 'k6';
 
 const TARGET = __ENV.TARGET || 'http://demo-api.demo.svc.cluster.local';
-const RATE = parseInt(__ENV.RATE || '50');
+const RATE = parseInt(__ENV.RATE || '24');
 
 export const options = {
   scenarios: {
@@ -13,7 +13,7 @@ export const options = {
       startRate: 5,
       timeUnit: '1s',
       preAllocatedVUs: 50,
-      maxVUs: 400,
+      maxVUs: 150,
       stages: [
         { target: RATE, duration: '1m' },  // going viral
         { target: RATE, duration: '10m' }, // stay viral while we scale live
@@ -24,6 +24,6 @@ export const options = {
 };
 
 export default function () {
-  const res = http.get(`${TARGET}/compute`, { timeout: '10s', tags: { endpoint: 'compute' } });
+  const res = http.get(`${TARGET}/compute`, { timeout: '5s', tags: { endpoint: 'compute' } });
   check(res, { 'status 200': (r) => r.status === 200 });
 }

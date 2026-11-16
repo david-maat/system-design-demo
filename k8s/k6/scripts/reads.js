@@ -13,7 +13,7 @@ export const options = {
       startRate: 2,
       timeUnit: '1s',
       preAllocatedVUs: 50,
-      maxVUs: 400,
+      maxVUs: 150,
       stages: [
         { target: RATE, duration: '1m' },
         { target: RATE, duration: '10m' },
@@ -26,11 +26,11 @@ export const options = {
 export default function () {
   let res;
   if (Math.random() < 0.9) {
-    res = http.get(`${TARGET}/items/stats`, { timeout: '10s', tags: { endpoint: 'stats' } });
+    res = http.get(`${TARGET}/items/stats`, { timeout: '5s', tags: { endpoint: 'stats' } });
   } else {
     res = http.post(`${TARGET}/items`, JSON.stringify({ name: `viral-${Date.now()}` }), {
       headers: { 'Content-Type': 'application/json' },
-      timeout: '10s',
+      timeout: '5s',
       tags: { endpoint: 'write' },
     });
   }

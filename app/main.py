@@ -42,8 +42,10 @@ def startup() -> None:
         replica.open()
 
 
+# async -> runs on the event loop, not in the threadpool that /compute saturates,
+# so health checks still answer while the pod is overloaded.
 @app.get("/healthz")
-def healthz():
+async def healthz():
     return {"ok": True, "pod": HOSTNAME}
 
 
