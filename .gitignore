@@ -1,3 +1,5 @@
 bootstrap.yaml
 secrets.yaml
 *.pdf
+__pycache__/
+*.pyc
