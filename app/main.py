@@ -20,15 +20,19 @@ PRIMARY_URL = os.environ["DATABASE_URL"]
 # When READ_DATABASE_URL is empty, reads go to the primary as well.
 READ_URL = os.environ.get("READ_DATABASE_URL") or PRIMARY_URL
 POOL_SIZE = int(os.environ.get("DB_POOL_SIZE", "5"))
+# Kubernetes Services balance per TCP connection, not per query. Recycling pooled
+# connections regularly spreads them over newly added read replicas.
+CONN_MAX_LIFETIME = float(os.environ.get("DB_CONN_MAX_LIFETIME", "15"))
 HASH_ROUNDS = int(os.environ.get("HASH_ROUNDS", "20000"))
 HOSTNAME = socket.gethostname()
 CATEGORIES = ["books", "games", "music", "movies", "tools", "garden", "toys", "food"]
 
-primary = ConnectionPool(PRIMARY_URL, min_size=1, max_size=POOL_SIZE, open=False)
+pool_opts = dict(min_size=1, max_size=POOL_SIZE, max_lifetime=CONN_MAX_LIFETIME, open=False)
+primary = ConnectionPool(PRIMARY_URL, **pool_opts)
 replica = (
     primary
     if READ_URL == PRIMARY_URL
-    else ConnectionPool(READ_URL, min_size=1, max_size=POOL_SIZE, open=False)
+    else ConnectionPool(READ_URL, **pool_opts)
 )
 
 app = FastAPI(title="system-design-demo")
