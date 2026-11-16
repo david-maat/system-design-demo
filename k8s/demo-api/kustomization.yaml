@@ -13,3 +13,6 @@ configMapGenerator:
       - DB_POOL_SIZE=5
       - DB_CONN_MAX_LIFETIME=15   # seconds; lets connections spread over new replicas
       - HASH_ROUNDS=20000
+      # Traces -> Tempo (OTLP/HTTP). Remove the endpoint to switch tracing off.
+      - OTEL_SERVICE_NAME=demo-api
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo.monitoring:4318

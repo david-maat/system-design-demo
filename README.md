@@ -1,6 +1,7 @@
 # System design demo: "Your app just went viral, what breaks first?"
 
-FastAPI + Postgres on k3s, deployed with Argo CD, load tested with k6, watched in Grafana.
+FastAPI + Postgres on k3s, deployed with Argo CD, load tested with k6, watched in Grafana
+(metrics: Prometheus, logs: Loki, traces: Tempo).
 
 ```
 app/            FastAPI service (built to ghcr.io/david-maat/system-design-demo/api by GitHub Actions)
@@ -8,6 +9,7 @@ k8s/demo-api/   API Deployment/Service/Ingress  <- demo knobs live here
 k8s/postgres/   primary + streaming read replica (StatefulSets)
 k8s/k6/         k6 scripts + suspended CronJobs used as job templates
 k8s/monitoring/ Grafana dashboard "Your app just went viral"
+k8s/tempo/      Tempo (traces); Loki + Alloy (logs) are Helm apps in argocd/apps/
 k8s/cloudflared Cloudflare Tunnel connector + hostname routes (credentials are a hand-made Secret)
 argocd/apps/    Argo CD applications (root app is created by bootstrap.yaml)
 ```
@@ -64,6 +66,13 @@ In `k8s/demo-api/kustomization.yaml`, switch `READ_DATABASE_URL` to the replica 
 Reads move to the replica, primary CPU drops and only writes remain on it.
 Bonus: set `replicas: 2` in `k8s/postgres/replica.yaml` to scale reads further.
 Talking point: with more API pods, `DB_POOL_SIZE × pods` connections add up (connection pooling, PgBouncer).
+
+### Logs and traces
+The API sends a trace per request (OpenTelemetry, with a span per SQL query) to Tempo and logs one line per
+request with its `trace_id`; Alloy ships the `demo` namespace's logs to Loki. On the dashboard:
+- **Service graph**: Act 2 shows the read traffic move from `postgres-primary` to `postgres-replica`.
+- **Slowest recent requests**: click a trace to see where the time goes (CPU in `/compute`, the `SELECT` in `/items/stats`).
+- **API logs**: click `trace_id` on a line to open its trace; from a trace, "Logs for this span" goes back.
 
 ### Reset between rehearsals
 Revert the commits, then `kubectl -n demo delete job -l job-name` (or let the TTL clean up).

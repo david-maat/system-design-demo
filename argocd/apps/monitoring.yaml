@@ -31,6 +31,34 @@ spec:
             auth.anonymous: {enabled: true, org_role: Viewer}   # audience can view without login
           sidecar:
             dashboards: {enabled: true, label: grafana_dashboard}
+          # Logs (Loki) and traces (Tempo), linked both ways via the trace id.
+          # $$ escapes Grafana's env-var expansion in provisioning files.
+          additionalDataSources:
+            - name: Loki
+              type: loki
+              uid: loki
+              url: http://loki.monitoring:3100
+              jsonData:
+                derivedFields:
+                  - name: TraceID
+                    matcherType: regex
+                    matcherRegex: "trace_id=(\\w+)"
+                    datasourceUid: tempo
+                    url: "$${__value.raw}"
+            - name: Tempo
+              type: tempo
+              uid: tempo
+              url: http://tempo.monitoring:3200
+              jsonData:
+                serviceMap: {datasourceUid: prometheus}
+                nodeGraph: {enabled: true}
+                tracesToLogsV2:
+                  datasourceUid: loki
+                  spanStartTimeShift: "-1m"
+                  spanEndTimeShift: "1m"
+                  customQuery: true
+                  query: '{namespace="demo", app="demo-api"} |= "$${__trace.traceId}"'
+                tracesToMetrics: {datasourceUid: prometheus}
   destination: {server: https://kubernetes.default.svc, namespace: monitoring}
   syncPolicy:
     automated: {prune: true, selfHeal: true}

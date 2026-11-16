@@ -6,4 +6,4 @@ COPY main.py .
 USER 1000
 EXPOSE 8000
 # 1 worker on purpose: we scale with pods, not processes.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-access-log"]

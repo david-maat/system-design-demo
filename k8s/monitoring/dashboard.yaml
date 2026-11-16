@@ -290,6 +290,75 @@ data:
               "refId": "A"
             }
           ]
+        },
+        {
+          "type": "nodeGraph",
+          "title": "Service graph (from traces): who calls which database",
+          "gridPos": {
+            "x": 0,
+            "y": 28,
+            "w": 12,
+            "h": 10
+          },
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "queryType": "serviceMap"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "title": "Slowest recent requests (click a trace id)",
+          "gridPos": {
+            "x": 12,
+            "y": 28,
+            "w": 12,
+            "h": 10
+          },
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "queryType": "traceql",
+              "query": "{resource.service.name=\"demo-api\" && kind=server && duration > 500ms}",
+              "limit": 20,
+              "tableType": "traces"
+            }
+          ]
+        },
+        {
+          "type": "logs",
+          "title": "API logs (click trace_id to open the trace)",
+          "gridPos": {
+            "x": 0,
+            "y": 38,
+            "w": 24,
+            "h": 10
+          },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "options": {
+            "showTime": true,
+            "wrapLogMessage": false,
+            "sortOrder": "Descending",
+            "enableLogDetails": true
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "{namespace=\"demo\", app=\"demo-api\"}"
+            }
+          ]
         }
       ]
     }
