@@ -1,0 +1,203 @@
+# Dummy shop services for the tracing demo. demo-api's /checkout calls inventory ->
+# pricing -> payment (-> fraud-check) -> shipping, one after another. Same image as the
+# API, started as dummy:app; behaviour comes from the env vars (see app/dummy.py).
+# Edit WORK_MS / ERROR_RATE to change the story.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: inventory}
+  template:
+    metadata:
+      labels: {app: inventory, tier: shop}
+    spec:
+      containers:
+        - name: inventory
+          image: ghcr.io/david-maat/system-design-demo/api:latest
+          imagePullPolicy: Always
+          command: [uvicorn, "dummy:app", --host, 0.0.0.0, --port, "8000", --no-access-log]
+          env:
+            - {name: OTEL_SERVICE_NAME, value: inventory}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://tempo.monitoring:4318"}
+            - {name: WORK_MS, value: "40"}
+            - {name: DOWNSTREAM, value: ""}
+            - {name: ERROR_RATE, value: "0"}
+          ports: [{name: http, containerPort: 8000}]
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 1
+            failureThreshold: 30
+          resources:
+            requests: {cpu: 20m, memory: 96Mi}
+            limits: {cpu: 200m, memory: 192Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory
+spec:
+  selector: {app: inventory}
+  ports: [{name: http, port: 80, targetPort: http}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pricing
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: pricing}
+  template:
+    metadata:
+      labels: {app: pricing, tier: shop}
+    spec:
+      containers:
+        - name: pricing
+          image: ghcr.io/david-maat/system-design-demo/api:latest
+          imagePullPolicy: Always
+          command: [uvicorn, "dummy:app", --host, 0.0.0.0, --port, "8000", --no-access-log]
+          env:
+            - {name: OTEL_SERVICE_NAME, value: pricing}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://tempo.monitoring:4318"}
+            - {name: WORK_MS, value: "30"}
+            - {name: DOWNSTREAM, value: ""}
+            - {name: ERROR_RATE, value: "0"}
+          ports: [{name: http, containerPort: 8000}]
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 1
+            failureThreshold: 30
+          resources:
+            requests: {cpu: 20m, memory: 96Mi}
+            limits: {cpu: 200m, memory: 192Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pricing
+spec:
+  selector: {app: pricing}
+  ports: [{name: http, port: 80, targetPort: http}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: payment}
+  template:
+    metadata:
+      labels: {app: payment, tier: shop}
+    spec:
+      containers:
+        - name: payment
+          image: ghcr.io/david-maat/system-design-demo/api:latest
+          imagePullPolicy: Always
+          command: [uvicorn, "dummy:app", --host, 0.0.0.0, --port, "8000", --no-access-log]
+          env:
+            - {name: OTEL_SERVICE_NAME, value: payment}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://tempo.monitoring:4318"}
+            - {name: WORK_MS, value: "150"}
+            - {name: DOWNSTREAM, value: "http://fraud-check"}
+            - {name: ERROR_RATE, value: "0.03"}
+          ports: [{name: http, containerPort: 8000}]
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 1
+            failureThreshold: 30
+          resources:
+            requests: {cpu: 20m, memory: 96Mi}
+            limits: {cpu: 200m, memory: 192Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment
+spec:
+  selector: {app: payment}
+  ports: [{name: http, port: 80, targetPort: http}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-check
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: fraud-check}
+  template:
+    metadata:
+      labels: {app: fraud-check, tier: shop}
+    spec:
+      containers:
+        - name: fraud-check
+          image: ghcr.io/david-maat/system-design-demo/api:latest
+          imagePullPolicy: Always
+          command: [uvicorn, "dummy:app", --host, 0.0.0.0, --port, "8000", --no-access-log]
+          env:
+            - {name: OTEL_SERVICE_NAME, value: fraud-check}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://tempo.monitoring:4318"}
+            - {name: WORK_MS, value: "200"}
+            - {name: DOWNSTREAM, value: ""}
+            - {name: ERROR_RATE, value: "0"}
+          ports: [{name: http, containerPort: 8000}]
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 1
+            failureThreshold: 30
+          resources:
+            requests: {cpu: 20m, memory: 96Mi}
+            limits: {cpu: 200m, memory: 192Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fraud-check
+spec:
+  selector: {app: fraud-check}
+  ports: [{name: http, port: 80, targetPort: http}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipping
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: shipping}
+  template:
+    metadata:
+      labels: {app: shipping, tier: shop}
+    spec:
+      containers:
+        - name: shipping
+          image: ghcr.io/david-maat/system-design-demo/api:latest
+          imagePullPolicy: Always
+          command: [uvicorn, "dummy:app", --host, 0.0.0.0, --port, "8000", --no-access-log]
+          env:
+            - {name: OTEL_SERVICE_NAME, value: shipping}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://tempo.monitoring:4318"}
+            - {name: WORK_MS, value: "60"}
+            - {name: DOWNSTREAM, value: ""}
+            - {name: ERROR_RATE, value: "0"}
+          ports: [{name: http, containerPort: 8000}]
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 1
+            failureThreshold: 30
+          resources:
+            requests: {cpu: 20m, memory: 96Mi}
+            limits: {cpu: 200m, memory: 192Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipping
+spec:
+  selector: {app: shipping}
+  ports: [{name: http, port: 80, targetPort: http}]

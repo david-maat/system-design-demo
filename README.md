@@ -9,6 +9,7 @@ k8s/demo-api/   API Deployment/Service/Ingress  <- demo knobs live here
 k8s/postgres/   primary + streaming read replica (StatefulSets)
 k8s/k6/         k6 scripts + suspended CronJobs used as job templates
 k8s/monitoring/ Grafana dashboard "Your app just went viral"
+k8s/shop/       dummy microservices behind /checkout (tracing demo)
 k8s/tempo/      Tempo (traces); Loki + Alloy (logs) are Helm apps in argocd/apps/
 k8s/cloudflared Cloudflare Tunnel connector + hostname routes (credentials are a hand-made Secret)
 argocd/apps/    Argo CD applications (root app is created by bootstrap.yaml)
@@ -72,6 +73,11 @@ The API sends a trace per request (OpenTelemetry, with a span per SQL query) to 
 request with its `trace_id`; Alloy ships the `demo` namespace's logs to Loki. On the dashboard:
 - **Service graph**: Act 2 shows the read traffic move from `postgres-primary` to `postgres-replica`.
 - **Slowest recent requests**: click a trace to see where the time goes (CPU in `/compute`, the `SELECT` in `/items/stats`).
+- **Distributed trace**: `curl https://demo.davidmaat.nl/checkout` calls the dummy shop services
+  (`k8s/shop/`) one after another: inventory → pricing → payment (→ fraud-check) → shipping. Open the trace:
+  the waterfall shows the calls are sequential and that payment + fraud-check eat most of the time
+  (talking point: run independent calls in parallel). Payment fails ~3% of the time; the error shows up red
+  in the trace and in the service graph.
 - **API logs**: click `trace_id` on a line to open its trace; from a trace, "Logs for this span" goes back.
 
 ### Reset between rehearsals

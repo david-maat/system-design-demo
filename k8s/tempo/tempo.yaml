@@ -37,6 +37,9 @@ data:
       processor:
         service_graphs:
           peer_attributes: [server.address, net.peer.name, peer.service, db.name]
+          # DB nodes are named after the host, not the database name ("demo"),
+          # so primary and replica show up as separate nodes.
+          database_name_attributes: [server.address, net.peer.name, db.name]
     storage:
       trace:
         backend: local

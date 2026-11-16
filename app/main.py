@@ -5,18 +5,20 @@ Endpoints
   GET  /items/stats   heavy read query -> shows the primary DB saturating (read replica)
   GET  /items/{id}    cheap read
   POST /items         write, always goes to the primary
+  GET  /checkout      calls the dummy shop services in a row -> shows a distributed trace
 """
 import hashlib
-import logging
 import os
 import random
 import socket
-import time
 
-from fastapi import FastAPI, HTTPException, Request
+import httpx
+from fastapi import FastAPI, HTTPException
 from prometheus_fastapi_instrumentator import Instrumentator
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel
+
+import telemetry
 
 PRIMARY_URL = os.environ["DATABASE_URL"]
 # When READ_DATABASE_URL is empty, reads go to the primary as well.
@@ -29,30 +31,12 @@ HASH_ROUNDS = int(os.environ.get("HASH_ROUNDS", "20000"))
 HOSTNAME = socket.gethostname()
 CATEGORIES = ["books", "games", "music", "movies", "tools", "garden", "toys", "food"]
 
-# ---- Logs + traces -----------------------------------------------------------
-# Every log line carries trace_id=..., so Grafana can jump from a log line in Loki
-# to its trace in Tempo. Traces are only exported when OTEL_EXPORTER_OTLP_ENDPOINT is set.
-from opentelemetry.instrumentation.logging import LoggingInstrumentor
-
-TRACING = bool(os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"))
-if TRACING:
-    from opentelemetry import trace
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+log = telemetry.setup("demo-api")
+if telemetry.TRACING:
     from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
-    from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-    # Service name comes from OTEL_SERVICE_NAME; tag spans with the pod as well.
-    provider = TracerProvider(resource=Resource.create({"service.instance.id": HOSTNAME}))
-    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-    trace.set_tracer_provider(provider)
-    # Must run before the pools open connections: every SQL query becomes a span
-    # with server.address = postgres-primary or postgres-replica.
+    # Must run before the pools open connections: every SQL query becomes a span.
     PsycopgInstrumentor().instrument(enable_commenter=False)
-
-LoggingInstrumentor().instrument(set_logging_format=True)
-log = logging.getLogger("demo-api")
 
 pool_opts = dict(min_size=1, max_size=POOL_SIZE, max_lifetime=CONN_MAX_LIFETIME, open=False)
 primary = ConnectionPool(PRIMARY_URL, **pool_opts)
@@ -61,29 +45,14 @@ replica = (
     if READ_URL == PRIMARY_URL
     else ConnectionPool(READ_URL, **pool_opts)
 )
+# /checkout calls these one after another (comma separated URLs).
+CHECKOUT_SERVICES = [u for u in os.environ.get("CHECKOUT_SERVICES", "").split(",") if u]
+http = httpx.Client(timeout=5)
 
 app = FastAPI(title="system-design-demo")
 Instrumentator().instrument(app).expose(app)
-if TRACING:
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-
-    FastAPIInstrumentor.instrument_app(
-        app, excluded_urls="healthz,metrics", exclude_spans=["send", "receive"]
-    )
-
-
-# One log line per request (uvicorn's access log is off, it can't carry trace ids).
-@app.middleware("http")
-async def access_log(request: Request, call_next):
-    start = time.perf_counter()
-    response = await call_next(request)
-    if request.url.path not in ("/healthz", "/metrics"):
-        log.info(
-            "%s %s %d %.0fms",
-            request.method, request.url.path, response.status_code,
-            (time.perf_counter() - start) * 1000,
-        )
-    return response
+telemetry.instrument_app(app)
+telemetry.add_access_log(app, log)
 
 
 @app.on_event("startup")
@@ -155,3 +124,18 @@ def create_item(item: NewItem):
             (item.name, item.category, item.price, item.name),
         ).fetchone()
     return {"id": row[0], "pod": HOSTNAME}
+
+
+@app.get("/checkout")
+def checkout():
+    # Sequential on purpose: total time = sum of all calls. The trace waterfall shows
+    # which service is slow (talking point: independent calls could run in parallel).
+    steps = []
+    for url in CHECKOUT_SERVICES:
+        r = http.get(url)
+        if r.status_code >= 400:
+            log.warning("checkout failed at %s: %d", url, r.status_code)
+            raise HTTPException(502, f"checkout failed at {url}")
+        steps.append(r.json())
+    log.info("checkout ok, %d services called", len(steps))
+    return {"pod": HOSTNAME, "steps": steps}

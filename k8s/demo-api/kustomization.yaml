@@ -16,3 +16,5 @@ configMapGenerator:
       # Traces -> Tempo (OTLP/HTTP). Remove the endpoint to switch tracing off.
       - OTEL_SERVICE_NAME=demo-api
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo.monitoring:4318
+      # /checkout calls these in order (dummy services in k8s/shop)
+      - CHECKOUT_SERVICES=http://inventory,http://pricing,http://payment,http://shipping
